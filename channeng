@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BAEC 加工中心产能与成本可视化模型 V2.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0F2A47; --steel: #1E4976; --accent: #E87722;
+    --green: #2A9D8F; --red: #C44536; --muted: #6B7B8C;
+    --white: #FFFFFF; --bg: #0A1929;
+    --card-bg: #0F2A47; --card-border: #1E4976;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--white); min-height: 100vh;
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  .header {
+    background: var(--navy);
+    border-bottom: 3px solid var(--accent);
+    padding: 16px 24px;
+  }
+  .header-inner { max-width: 1320px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+  .brand-tag { font-size: 10px; color: var(--accent); letter-spacing: 3px; font-weight: 700; margin-bottom: 4px; }
+  .brand-title { font-size: 22px; font-weight: 900; letter-spacing: 1px; }
+  .brand-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .reset-btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--card-border);
+    padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    font-family: inherit; transition: all 0.2s;
+  }
+  .reset-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .layout { max-width: 1320px; margin: 0 auto; padding: 16px 20px; display: flex; gap: 16px; }
+
+  .sidebar {
+    width: 280px; flex-shrink: 0;
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 10px; padding: 16px;
+    position: sticky; top: 16px; align-self: flex-start;
+    max-height: calc(100vh - 100px); overflow-y: auto;
+  }
+  .sidebar-title { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 12px; letter-spacing: 1px; }
+  .section-title {
+    font-size: 11px; font-weight: 700; color: var(--white);
+    margin-bottom: 6px; margin-top: 14px;
+    padding-top: 8px; border-top: 1px solid var(--card-border);
+  }
+  .section-title:first-of-type { margin-top: 4px; padding-top: 0; border-top: none; }
+  .link-hint {
+    font-size: 9px; color: var(--green); font-weight: 400;
+    margin-left: 6px; font-family: inherit;
+  }
+  .slider-row { margin-bottom: 12px; }
+  .slider-label {
+    display: flex; justify-content: space-between;
+    margin-bottom: 4px; font-size: 12px;
+  }
+  .slider-label-text { color: var(--muted); }
+  .slider-label-value {
+    color: var(--accent); font-weight: 700;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  }
+  input[type="range"] {
+    width: 100%; height: 6px;
+    -webkit-appearance: none; appearance: none;
+    border-radius: 3px; outline: none; cursor: pointer;
+    background: var(--card-border);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--white);
+    cursor: pointer; box-shadow: 0 0 8px rgba(232, 119, 34, 0.5);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--white);
+    cursor: pointer;
+  }
+  input[type="range"].linked::-webkit-slider-thumb { background: var(--green); box-shadow: 0 0 8px rgba(42, 157, 143, 0.5); }
+  input[type="range"].linked::-moz-range-thumb { background: var(--green); }
+
+  .main { flex: 1; min-width: 0; }
+
+  .kpi-row, .scenario-row {
+    display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .metric-card {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 8px; padding: 12px 14px;
+    flex: 1; min-width: 130px;
+    border-top: 3px solid var(--accent);
+  }
+  .metric-card.green { border-top-color: var(--green); }
+  .metric-card.muted { border-top-color: var(--muted); }
+  .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .metric-value {
+    font-size: 22px; font-weight: 800;
+    color: var(--accent); font-family: 'JetBrains Mono', monospace;
+  }
+  .metric-value.green { color: var(--green); }
+  .metric-value.muted { color: var(--muted); }
+  .metric-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .scenario-card {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 8px; padding: 14px;
+    flex: 1; min-width: 200px;
+    border-top: 3px solid var(--accent);
+    position: relative;
+  }
+  .scenario-card.recommended {
+    border: 1px solid var(--green);
+    border-top: 3px solid var(--green);
+  }
+  .scenario-badge {
+    position: absolute; top: -1px; right: 12px;
+    background: var(--green); color: var(--white);
+    font-size: 9px; padding: 2px 8px; border-radius: 0 0 4px 4px;
+    font-weight: 700; letter-spacing: 1px;
+  }
+  .scenario-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .scenario-route { font-size: 13px; color: var(--white); font-weight: 700; margin-bottom: 8px; }
+  .scenario-metrics {
+    display: flex; gap: 10px; align-items: baseline;
+  }
+  .scenario-metric-item { flex: 1; }
+  .scenario-metric-item div:first-child { font-size: 9px; color: var(--muted); }
+  .scenario-metric-item div:last-child {
+    font-size: 15px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab {
+    padding: 8px 20px; background: transparent; color: var(--muted);
+    border: 1px solid var(--card-border); border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-family: inherit;
+    transition: all 0.2s;
+  }
+  .tab:hover { color: var(--white); border-color: var(--muted); }
+  .tab.active {
+    background: var(--accent); color: var(--white);
+    border-color: var(--accent); font-weight: 700;
+  }
+
+  .chart-area {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 10px; padding: 16px;
+    margin-bottom: 14px;
+  }
+  .chart-title {
+    font-size: 13px; font-weight: 700;
+    color: var(--white); margin-bottom: 12px;
+  }
+  .chart-title span {
+    font-size: 10px; color: var(--muted);
+    margin-left: 8px; font-weight: 400;
+  }
+  .x-axis-tabs {
+    display: flex; gap: 6px; margin-bottom: 12px;
+    align-items: center;
+  }
+  .x-axis-tabs-label {
+    font-size: 11px; color: var(--muted);
+    margin-right: 4px;
+  }
+  .x-axis-tab {
+    padding: 4px 12px; background: transparent; color: var(--muted);
+    border: 1px solid var(--card-border); border-radius: 4px;
+    cursor: pointer; font-size: 11px; font-family: inherit;
+    transition: all 0.15s;
+  }
+  .x-axis-tab:hover { color: var(--white); border-color: var(--muted); }
+  .x-axis-tab.active {
+    background: var(--steel); color: var(--white);
+    border-color: var(--steel); font-weight: 700;
+  }
+  .x-axis-tabs.hidden { display: none; }
+  .chart-container { width: 100%; height: 400px; position: relative; }
+  .chart-container svg { width: 100%; height: 100%; display: block; }
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    justify-content: center; margin-top: 10px;
+    font-size: 11px; color: var(--muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch { width: 14px; height: 3px; border-radius: 2px; }
+  .legend-swatch.dash {
+    background-image: repeating-linear-gradient(to right, currentColor 0 5px, transparent 5px 9px);
+    background-color: transparent !important;
+    height: 2px;
+  }
+
+  .data-table-wrap {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 10px; padding: 16px; overflow-x: auto;
+  }
+  .data-table-title {
+    font-size: 13px; font-weight: 700;
+    color: var(--white); margin-bottom: 10px;
+  }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px; font-family: 'JetBrains Mono', monospace;
+  }
+  th {
+    padding: 8px; color: var(--muted);
+    font-weight: 600; text-align: center; font-size: 11px;
+    border-bottom: 2px solid var(--accent);
+  }
+  td {
+    padding: 6px 8px; text-align: center;
+    border-bottom: 1px solid var(--card-border);
+  }
+  td.route-r1 { color: var(--green); font-weight: 600; }
+  td.route-r2 { color: var(--accent); font-weight: 600; }
+  td.route-r3 { color: var(--muted); font-weight: 600; }
+  td.invest { color: var(--accent); font-weight: 700; }
+  td.invest.zero { color: var(--muted); font-weight: 400; }
+  td.save { color: var(--green); }
+  td.save.none { color: var(--muted); }
+  td.payback-good { color: var(--green); font-weight: 700; }
+  td.payback-ok { color: var(--accent); font-weight: 700; }
+  td.payback-bad { color: var(--red); font-weight: 700; }
+  td.payback-none { color: var(--muted); }
+
+  .footer {
+    text-align: center; padding: 20px 0 32px;
+    font-size: 11px; color: var(--muted);
+  }
+
+  .chart-tooltip {
+    position: absolute; background: var(--navy);
+    border: 1px solid var(--card-border); border-radius: 6px;
+    padding: 10px 12px; font-size: 12px;
+    pointer-events: none; z-index: 10;
+    min-width: 200px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    opacity: 0; transition: opacity 0.1s;
+  }
+  .tooltip-label {
+    color: var(--muted); font-size: 11px;
+    margin-bottom: 6px; padding-bottom: 4px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .tooltip-row {
+    display: flex; justify-content: space-between;
+    gap: 12px; padding: 3px 0;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .tooltip-swatch {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 2px; margin-right: 6px; vertical-align: middle;
+  }
+
+  @media (max-width: 960px) {
+    .layout { flex-direction: column; }
+    .sidebar { width: 100%; position: static; max-height: none; }
+    .chart-container { height: 320px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <div class="brand-tag">CAPACITY · EQUIPMENT · COST</div>
+      <div class="brand-title">加工中心产能与成本可视化模型</div>
+      <div class="brand-sub">V2.1 · 拖动滑块调整参数，实时查看成本与回本曲线</div>
+    </div>
+    <button class="reset-btn" id="resetBtn">↺ 重置到默认值</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-title">⚙ 模型参数</div>
+
+    <div class="section-title">产能规模</div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">卧式组年产能</span>
+        <span class="slider-label-value" id="lbl-capH">600 台</span>
+      </div>
+      <input type="range" id="capH" min="100" max="10000" step="100" value="600">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">车铣组年产能</span>
+        <span class="slider-label-value" id="lbl-capT">600 台</span>
+      </div>
+      <input type="range" id="capT" min="100" max="10000" step="100" value="600">
+    </div>
+
+    <div class="section-title">外协报价<span class="link-hint">按 1:1.8 联动</span></div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">外协 · 粗加工</span>
+        <span class="slider-label-value" id="lbl-outRough">1.0 万/台</span>
+      </div>
+      <input type="range" id="outRough" class="linked" min="0.5" max="3.0" step="0.1" value="1.0">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">外协 · 精加工</span>
+        <span class="slider-label-value" id="lbl-outFine">1.8 万/台</span>
+      </div>
+      <input type="range" id="outFine" class="linked" min="0.9" max="5.4" step="0.1" value="1.8">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">BAEC 折扣率</span>
+        <span class="slider-label-value" id="lbl-discount">70%（省30%）</span>
+      </div>
+      <input type="range" id="discount" min="0.5" max="1.0" step="0.05" value="0.7">
+    </div>
+
+    <div class="section-title">设备投资</div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">卧式新增单价</span>
+        <span class="slider-label-value" id="lbl-priceH">450 万/台</span>
+      </div>
+      <input type="range" id="priceH" min="100" max="1000" step="50" value="450">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">车铣新增单价</span>
+        <span class="slider-label-value" id="lbl-priceT">1200 万/台</span>
+      </div>
+      <input type="range" id="priceT" min="500" max="3000" step="100" value="1200">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">现有卧式台数</span>
+        <span class="slider-label-value" id="lbl-existH">2 台</span>
+      </div>
+      <input type="range" id="existH" min="0" max="10" step="1" value="2">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">现有车铣台数</span>
+        <span class="slider-label-value" id="lbl-existT">1 台</span>
+      </div>
+      <input type="range" id="existT" min="0" max="5" step="1" value="1">
+    </div>
+
+    <div class="section-title">生产参数</div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">年工作天数</span>
+        <span class="slider-label-value" id="lbl-days">300 天</span>
+      </div>
+      <input type="range" id="days" min="200" max="365" step="5" value="300">
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">
+        <span class="slider-label-text">设备利用率</span>
+        <span class="slider-label-value" id="lbl-util">85%</span>
+      </div>
+      <input type="range" id="util" min="0.6" max="0.95" step="0.05" value="0.85">
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="kpi-row" id="kpiRow"></div>
+    <div class="scenario-row" id="scenarioRow"></div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="cost">年成本曲线</button>
+      <button class="tab" data-tab="payback">回本年数曲线</button>
+      <button class="tab" data-tab="invest">投资对比</button>
+    </div>
+
+    <div class="chart-area">
+      <div class="chart-title" id="chartTitle"></div>
+      <div class="x-axis-tabs" id="xAxisTabs">
+        <span class="x-axis-tabs-label">横轴视角：</span>
+        <button class="x-axis-tab active" data-mode="sum">汇总（卧式+车铣）</button>
+        <button class="x-axis-tab" data-mode="horizontal">仅卧式组</button>
+        <button class="x-axis-tab" data-mode="turning">仅车铣组</button>
+      </div>
+      <div class="chart-container" id="chartContainer">
+        <svg id="mainChart" viewBox="0 0 800 400" preserveAspectRatio="none"></svg>
+        <div class="chart-tooltip" id="tooltip"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="data-table-wrap">
+      <div class="data-table-title" id="tableTitle"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>班制</th><th>路线</th><th>卧式需求</th><th>车铣需求</th>
+            <th>新增卧式</th><th>新增车铣</th><th>新增投资(万)</th><th>年度节省(万)</th><th>回本(年)</th>
+          </tr>
+        </thead>
+        <tbody id="dataTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      BAEC 加工中心产能与成本分析 V2.1 · 数据来源：加工中心产能与成本模型_V2_正式修正版.xlsx
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// 数据与常量
+// ═══════════════════════════════════════════════
+const HOURS = {
+  horizontal: {
+    roughFine: { VRM1200: 13.83, VCH1800: 19.01, VCH3000: 30.4 },
+    fine:      { VRM1200: 4.0,   VCH1800: 8.3,   VCH3000: 13.97 },
+  },
+  turning: {
+    roughFine: { VRM1200: 10.0,  VCH1800: 5.57,  VCH3000: 5.73 },
+    fine:      { VRM1200: 5.33,  VCH1800: 2.8,   VCH3000: 3.23 },
+  },
+};
+const MODELS = ["VRM1200", "VCH1800", "VCH3000"];
+const SHIFT_HRS = { 1: 8, 2: 16, 3: 24 };
+const C = {
+  navy: "#0F2A47", accent: "#E87722",
+  green: "#2A9D8F", red: "#C44536",
+  muted: "#6B7B8C", white: "#FFFFFF",
+  cardBorder: "#1E4976",
+};
+
+const DEFAULTS = {
+  capH: 600, capT: 600,
+  outRough: 1.0, outFine: 1.8, discount: 0.7,
+  priceH: 450, priceT: 1200,
+  existH: 2, existT: 1,
+  days: 300, util: 0.85,
+};
+
+const OUT_RATIO = 1.8; // 精加工/粗加工 = 1.8
+
+let state = { ...DEFAULTS };
+let activeTab = "cost";
+let xAxisMode = "sum"; // "sum" | "horizontal" | "turning"
+
+// ═══════════════════════════════════════════════
+// 核心计算
+// ═══════════════════════════════════════════════
+function calcModel(p) {
+  const { days, util, outRough, outFine, discount, priceH, priceT, existH, existT, capH, capT } = p;
+  const yearHrs = [1, 2, 3].map(s => days * SHIFT_HRS[s] * util);
+  const perModelH = capH / 3;
+  const perModelT = capT / 3;
+
+  // 各品类设备需求 (按班制 × 路线)
+  const demand = [];
+  for (let s = 0; s < 3; s++) {
+    const yh = yearHrs[s];
+    let hR1 = 0, tR1 = 0, hR2 = 0, tR2 = 0;
+    for (const m of MODELS) {
+      hR1 += (perModelH * HOURS.horizontal.roughFine[m]) / yh;
+      tR1 += (perModelT * HOURS.turning.roughFine[m]) / yh;
+      hR2 += (perModelH * HOURS.horizontal.fine[m]) / yh;
+      tR2 += (perModelT * HOURS.turning.fine[m]) / yh;
+    }
+    demand[s] = {
+      r1: { h: hR1, t: tR1 },
+      r2: { h: hR2, t: tR2 },
+      r3: { h: 0, t: 0 },
+    };
+  }
+
+  // 缺口与投资
+  const gap = [];
+  for (let s = 0; s < 3; s++) {
+    gap[s] = {};
+    for (const r of ["r1", "r2"]) {
+      const hGap = Math.max(0, Math.ceil(demand[s][r].h - existH));
+      const tGap = Math.max(0, Math.ceil(demand[s][r].t - existT));
+      gap[s][r] = { hGap, tGap, invest: hGap * priceH + tGap * priceT };
+    }
+    gap[s].r3 = { hGap: 0, tGap: 0, invest: 0 };
+  }
+
+  // 单台成本
+  const baecRough = outRough * discount;
+  const baecFine = outFine * discount;
+  const unitCost = {
+    r1: baecRough + baecFine,
+    r2: outRough + baecFine,
+    r3: outRough + outFine,
+  };
+
+  // 年总成本 (卧式capH + 车铣capT)
+  const totalQty = capH + capT;
+  const annualCost = {
+    r1: unitCost.r1 * totalQty,
+    r2: unitCost.r2 * totalQty,
+    r3: unitCost.r3 * totalQty,
+  };
+  const annualSave = {
+    r1: annualCost.r3 - annualCost.r1,
+    r2: annualCost.r3 - annualCost.r2,
+  };
+
+  // 回本
+  const payback = [];
+  for (let s = 0; s < 3; s++) {
+    payback[s] = {};
+    for (const r of ["r1", "r2"]) {
+      const inv = gap[s][r].invest;
+      const save = annualSave[r];
+      payback[s][r] = inv > 0 && save > 0 ? inv / save : 0;
+    }
+  }
+
+  return { yearHrs, demand, gap, unitCost, annualCost, annualSave, payback, totalQty };
+}
+
+// ═══════════════════════════════════════════════
+// 格式化辅助
+// ═══════════════════════════════════════════════
+function fmtMoney(v) {
+  if (v >= 10000) return (v / 10000).toFixed(1) + "亿";
+  return Math.round(v).toLocaleString() + "万";
+}
+function fmtMoneyShort(v) {
+  if (v >= 10000) return (v / 10000).toFixed(1) + "亿";
+  return Math.round(v).toLocaleString();
+}
+
+// ═══════════════════════════════════════════════
+// 渲染 KPI 卡片
+// ═══════════════════════════════════════════════
+function renderKPI(m) {
+  const el = document.getElementById("kpiRow");
+  el.innerHTML = `
+    <div class="metric-card green">
+      <div class="metric-label">路线1 单台成本</div>
+      <div class="metric-value green">${m.unitCost.r1.toFixed(2)}万</div>
+      <div class="metric-sub">BAEC 全自营</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">路线2 单台成本</div>
+      <div class="metric-value">${m.unitCost.r2.toFixed(2)}万</div>
+      <div class="metric-sub">外协粗+自营精</div>
+    </div>
+    <div class="metric-card muted">
+      <div class="metric-label">路线3 单台成本</div>
+      <div class="metric-value muted">${m.unitCost.r3.toFixed(2)}万</div>
+      <div class="metric-sub">全外协(基准)</div>
+    </div>
+    <div class="metric-card green">
+      <div class="metric-label">年度节省 (路线1)</div>
+      <div class="metric-value green">${fmtMoneyShort(m.annualSave.r1)}万</div>
+      <div class="metric-sub">vs 全外协 · ${m.totalQty.toLocaleString()}台</div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════
+// 场景卡片
+// ═══════════════════════════════════════════════
+function renderScenarios(m) {
+  const el = document.getElementById("scenarioRow");
+  const cards = [];
+  for (let s = 0; s < 3; s++) {
+    const p1 = m.payback[s].r1;
+    const p2 = m.payback[s].r2;
+    let bestR, bestPB, bestInv, bestSave;
+    if (p1 > 0 && (p1 <= p2 || p2 === 0)) {
+      bestR = "r1"; bestPB = p1; bestInv = m.gap[s].r1.invest; bestSave = m.annualSave.r1;
+    } else if (p2 > 0) {
+      bestR = "r2"; bestPB = p2; bestInv = m.gap[s].r2.invest; bestSave = m.annualSave.r2;
+    } else {
+      // 两者都是 0（无需投资）
+      bestR = m.gap[s].r2.invest === 0 && m.annualSave.r2 > 0 ? "r2" : "r1";
+      bestPB = 0; bestInv = m.gap[s][bestR].invest; bestSave = m.annualSave[bestR];
+    }
+
+    const routeName = bestR === "r1" ? "路线 1 · 全自营" : "路线 2 · 半外协";
+    const isBest = s === 2; // 3 班制默认推荐
+
+    let pbColor = C.muted;
+    let pbText = "N/A";
+    if (bestPB > 0) {
+      pbText = bestPB.toFixed(1) + "年";
+      pbColor = bestPB > 5 ? C.red : bestPB < 2 ? C.green : C.accent;
+    } else if (bestInv === 0 && bestSave > 0) {
+      pbText = "立即"; pbColor = C.green;
+    }
+
+    cards.push(`
+      <div class="scenario-card ${isBest ? 'recommended' : ''}">
+        ${isBest ? '<div class="scenario-badge">重点推荐</div>' : ''}
+        <div class="scenario-title">${s + 1} 班制</div>
+        <div class="scenario-route">${routeName}</div>
+        <div class="scenario-metrics">
+          <div class="scenario-metric-item">
+            <div>投资</div>
+            <div class="mono" style="color:${bestInv > 0 ? C.white : C.muted}">${bestInv > 0 ? fmtMoneyShort(bestInv) + "万" : "0"}</div>
+          </div>
+          <div class="scenario-metric-item">
+            <div>年省</div>
+            <div class="mono" style="color:${C.green}">${bestSave > 0 ? fmtMoneyShort(bestSave) + "万" : "—"}</div>
+          </div>
+          <div class="scenario-metric-item">
+            <div>回本</div>
+            <div class="mono" style="color:${pbColor}">${pbText}</div>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+  el.innerHTML = cards.join("");
+}
+
+// ═══════════════════════════════════════════════
+// SVG 图表渲染
+// ═══════════════════════════════════════════════
+const CHART_W = 800, CHART_H = 400;
+const MARGIN = { top: 20, right: 20, bottom: 50, left: 70 };
+const PW = CHART_W - MARGIN.left - MARGIN.right;
+const PH = CHART_H - MARGIN.top - MARGIN.bottom;
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function clearSvg() {
+  const svg = document.getElementById("mainChart");
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  return svg;
+}
+
+function drawAxisGrid(svg, xScale, yScale, xTicks, yTicks, xFmt, yFmt) {
+  // Y grid
+  yTicks.forEach(v => {
+    const y = yScale(v);
+    svg.appendChild(svgEl("line", {
+      x1: MARGIN.left, y1: y, x2: MARGIN.left + PW, y2: y,
+      stroke: C.cardBorder, "stroke-dasharray": "3 3", "stroke-width": 0.5,
+    }));
+    const label = svgEl("text", {
+      x: MARGIN.left - 8, y: y + 4,
+      fill: C.muted, "font-size": 10, "text-anchor": "end",
+      "font-family": "'JetBrains Mono', monospace",
+    });
+    label.textContent = yFmt(v);
+    svg.appendChild(label);
+  });
+  // X grid
+  xTicks.forEach(v => {
+    const x = xScale(v);
+    svg.appendChild(svgEl("line", {
+      x1: x, y1: MARGIN.top, x2: x, y2: MARGIN.top + PH,
+      stroke: C.cardBorder, "stroke-dasharray": "3 3", "stroke-width": 0.5,
+    }));
+    const label = svgEl("text", {
+      x: x, y: MARGIN.top + PH + 18,
+      fill: C.muted, "font-size": 10, "text-anchor": "middle",
+      "font-family": "'JetBrains Mono', monospace",
+    });
+    label.textContent = xFmt(v);
+    svg.appendChild(label);
+  });
+  // Axes
+  svg.appendChild(svgEl("line", {
+    x1: MARGIN.left, y1: MARGIN.top + PH, x2: MARGIN.left + PW, y2: MARGIN.top + PH,
+    stroke: C.muted, "stroke-width": 1,
+  }));
+  svg.appendChild(svgEl("line", {
+    x1: MARGIN.left, y1: MARGIN.top, x2: MARGIN.left, y2: MARGIN.top + PH,
+    stroke: C.muted, "stroke-width": 1,
+  }));
+}
+
+function drawLine(svg, points, xScale, yScale, color, width = 2.5, dash = null) {
+  const d = points.map((p, i) => {
+    if (p.y == null) return null;
+    return (i === 0 || points[i-1].y == null ? "M" : "L") + xScale(p.x) + "," + yScale(p.y);
+  }).filter(Boolean).join(" ");
+  const path = svgEl("path", {
+    d, stroke: color, "stroke-width": width, fill: "none",
+    "stroke-linejoin": "round", "stroke-linecap": "round",
+  });
+  if (dash) path.setAttribute("stroke-dasharray", dash);
+  svg.appendChild(path);
+}
+
+function drawRefLine(svg, xScale, yScale, x, y, color, label) {
+  if (x != null) {
+    const xp = xScale(x);
+    svg.appendChild(svgEl("line", {
+      x1: xp, y1: MARGIN.top, x2: xp, y2: MARGIN.top + PH,
+      stroke: color, "stroke-width": 1.5, "stroke-dasharray": "5 3",
+    }));
+    const t = svgEl("text", {
+      x: xp + 4, y: MARGIN.top + 12,
+      fill: color, "font-size": 10, "font-weight": 700,
+      "font-family": "'Noto Sans SC', sans-serif",
+    });
+    t.textContent = label;
+    svg.appendChild(t);
+  }
+  if (y != null) {
+    const yp = yScale(y);
+    svg.appendChild(svgEl("line", {
+      x1: MARGIN.left, y1: yp, x2: MARGIN.left + PW, y2: yp,
+      stroke: color, "stroke-width": 1.5, "stroke-dasharray": "5 3",
+    }));
+    const t = svgEl("text", {
+      x: MARGIN.left + PW - 4, y: yp - 4,
+      fill: color, "font-size": 10, "font-weight": 700, "text-anchor": "end",
+      "font-family": "'Noto Sans SC', sans-serif",
+    });
+    t.textContent = label;
+    svg.appendChild(t);
+  }
+}
+
+// 折线图悬停
+function setupHover(svg, series, xScale, yScale, xs, xLabel, yLabel) {
+  const tooltip = document.getElementById("tooltip");
+  const container = document.getElementById("chartContainer");
+  const overlay = svgEl("rect", {
+    x: MARGIN.left, y: MARGIN.top, width: PW, height: PH,
+    fill: "transparent",
+  });
+  const guide = svgEl("line", {
+    x1: 0, y1: MARGIN.top, x2: 0, y2: MARGIN.top + PH,
+    stroke: C.accent, "stroke-width": 1, opacity: 0,
+  });
+  svg.appendChild(guide);
+
+  // 每个 series 点
+  const dots = series.map(s => {
+    const d = svgEl("circle", {
+      cx: 0, cy: 0, r: 4, fill: s.color, stroke: C.white, "stroke-width": 1.5, opacity: 0,
+    });
+    svg.appendChild(d);
+    return d;
+  });
+
+  overlay.addEventListener("mousemove", (e) => {
+    const rect = svg.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) * (CHART_W / rect.width);
+    const sy = (e.clientY - rect.top) * (CHART_H / rect.height);
+    if (sx < MARGIN.left || sx > MARGIN.left + PW) return;
+    // 找最近 x
+    let closest = 0, minDist = Infinity;
+    for (let i = 0; i < xs.length; i++) {
+      const dist = Math.abs(xScale(xs[i]) - sx);
+      if (dist < minDist) { minDist = dist; closest = i; }
+    }
+    const xAt = xs[closest];
+    const xp = xScale(xAt);
+    guide.setAttribute("x1", xp);
+    guide.setAttribute("x2", xp);
+    guide.setAttribute("opacity", 1);
+
+    let html = `<div class="tooltip-label">${xLabel}: <span class="mono">${xAt.toLocaleString()} 台</span></div>`;
+    series.forEach((s, i) => {
+      const pt = s.points[closest];
+      if (pt && pt.y != null) {
+        const yp = yScale(pt.y);
+        dots[i].setAttribute("cx", xp);
+        dots[i].setAttribute("cy", yp);
+        dots[i].setAttribute("opacity", 1);
+        html += `<div class="tooltip-row"><span><span class="tooltip-swatch" style="background:${s.color}"></span>${s.name}</span><span style="color:${s.color}">${s.fmt(pt.y)}</span></div>`;
+      } else {
+        dots[i].setAttribute("opacity", 0);
+      }
+    });
+    tooltip.innerHTML = html;
+    tooltip.style.opacity = 1;
+
+    const contRect = container.getBoundingClientRect();
+    let tx = e.clientX - contRect.left + 14;
+    let ty = e.clientY - contRect.top - 20;
+    if (tx + 220 > contRect.width) tx = e.clientX - contRect.left - 230;
+    tooltip.style.left = tx + "px";
+    tooltip.style.top = ty + "px";
+  });
+  overlay.addEventListener("mouseleave", () => {
+    tooltip.style.opacity = 0;
+    guide.setAttribute("opacity", 0);
+    dots.forEach(d => d.setAttribute("opacity", 0));
+  });
+  svg.appendChild(overlay);
+}
+
+// 渲染 Legend
+function renderLegend(items) {
+  const el = document.getElementById("legend");
+  el.innerHTML = items.map(it =>
+    `<div class="legend-item">
+      <span class="legend-swatch ${it.dash ? 'dash' : ''}" style="background:${it.color};color:${it.color}"></span>
+      <span>${it.name}</span>
+    </div>`
+  ).join("");
+}
+
+// 智能选择 tick 值
+function niceTicks(min, max, count = 6) {
+  const range = max - min;
+  const roughStep = range / count;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const norm = roughStep / magnitude;
+  let step;
+  if (norm < 1.5) step = magnitude;
+  else if (norm < 3) step = 2 * magnitude;
+  else if (norm < 7) step = 5 * magnitude;
+  else step = 10 * magnitude;
+  const ticks = [];
+  const start = Math.ceil(min / step) * step;
+  for (let v = start; v <= max; v += step) ticks.push(v);
+  return ticks;
+}
+
+// ═══════════════════════════════════════════════
+// Tab 1: 年成本曲线
+// ═══════════════════════════════════════════════
+function renderCostChart() {
+  const svg = clearSvg();
+
+  // 根据横轴模式决定：当前 x 值 + x 标签 + x 范围 + 该 x 对应的 capH/capT
+  let currX, xLabel, xMax, xTicks, mapX;
+  if (xAxisMode === "sum") {
+    currX = state.capH + state.capT;
+    xLabel = "总产量";
+    xMax = 20000;
+    xTicks = [2000, 5000, 10000, 15000, 20000];
+    const ratio = state.capH / (state.capH + state.capT) || 0.5;
+    mapX = (x) => ({ capH: x * ratio, capT: x * (1 - ratio) });
+  } else if (xAxisMode === "horizontal") {
+    currX = state.capH;
+    xLabel = "卧式产量";
+    xMax = 10000;
+    xTicks = [1000, 2500, 5000, 7500, 10000];
+    mapX = (x) => ({ capH: x, capT: state.capT });
+  } else {
+    currX = state.capT;
+    xLabel = "车铣产量";
+    xMax = 10000;
+    xTicks = [1000, 2500, 5000, 7500, 10000];
+    mapX = (x) => ({ capH: state.capH, capT: x });
+  }
+
+  document.getElementById("chartTitle").innerHTML =
+    `年运营成本 vs ${xLabel}<span>当前 ${xLabel} ${currX.toLocaleString()} 台 · 总产量 ${(state.capH + state.capT).toLocaleString()} 台</span>`;
+
+  // 生成数据
+  const xs = [];
+  const step = Math.max(100, Math.round(xMax / 100));
+  for (let x = step; x <= xMax; x += step) xs.push(x);
+
+  const series = [
+    { name: "路线1 全自营", color: C.green, dash: null,
+      points: xs.map(x => ({ x, y: calcModel({ ...state, ...mapX(x) }).annualCost.r1 })),
+      fmt: (v) => fmtMoney(v) },
+    { name: "路线2 半外协", color: C.accent, dash: null,
+      points: xs.map(x => ({ x, y: calcModel({ ...state, ...mapX(x) }).annualCost.r2 })),
+      fmt: (v) => fmtMoney(v) },
+    { name: "路线3 全外协 (基准)", color: C.muted, dash: "8 4",
+      points: xs.map(x => ({ x, y: calcModel({ ...state, ...mapX(x) }).annualCost.r3 })),
+      fmt: (v) => fmtMoney(v) },
+  ];
+
+  const yMax = Math.max(...series.flatMap(s => s.points.map(p => p.y))) * 1.05;
+  const xScale = v => MARGIN.left + (v - xs[0]) / (xMax - xs[0]) * PW;
+  const yScale = v => MARGIN.top + PH - v / yMax * PH;
+
+  const yTicks = niceTicks(0, yMax, 6);
+
+  drawAxisGrid(svg, xScale, yScale, xTicks, yTicks,
+    v => v >= 1000 ? (v / 1000) + "k" : v,
+    v => v >= 10000 ? (v / 10000).toFixed(0) + "亿" : v + "万");
+
+  series.forEach(s => drawLine(svg, s.points, xScale, yScale, s.color, 2.5, s.dash));
+
+  if (currX >= xs[0] && currX <= xMax) {
+    drawRefLine(svg, xScale, yScale, currX, null, C.accent, `当前 ${currX.toLocaleString()}`);
+  }
+
+  setupHover(svg, series, xScale, yScale, xs, xLabel,
+    (v) => fmtMoney(v));
+
+  renderLegend(series);
+}
+
+// ═══════════════════════════════════════════════
+// Tab 2: 回本年数曲线
+// ═══════════════════════════════════════════════
+function renderPaybackChart() {
+  const svg = clearSvg();
+
+  let currX, xLabel, xMax, xTicks, mapX;
+  if (xAxisMode === "sum") {
+    currX = state.capH + state.capT;
+    xLabel = "总产量";
+    xMax = 20000;
+    xTicks = [2000, 5000, 10000, 15000, 20000];
+    const ratio = state.capH / (state.capH + state.capT) || 0.5;
+    mapX = (x) => ({ capH: x * ratio, capT: x * (1 - ratio) });
+  } else if (xAxisMode === "horizontal") {
+    currX = state.capH;
+    xLabel = "卧式产量";
+    xMax = 10000;
+    xTicks = [1000, 2500, 5000, 7500, 10000];
+    mapX = (x) => ({ capH: x, capT: state.capT });
+  } else {
+    currX = state.capT;
+    xLabel = "车铣产量";
+    xMax = 10000;
+    xTicks = [1000, 2500, 5000, 7500, 10000];
+    mapX = (x) => ({ capH: state.capH, capT: x });
+  }
+
+  document.getElementById("chartTitle").innerHTML =
+    `等价回本年数 vs ${xLabel}<span>5 年为投资门槛（红色虚线） · 当前 ${xLabel} ${currX.toLocaleString()} 台</span>`;
+
+  const xs = [];
+  const step = Math.max(100, Math.round(xMax / 100));
+  for (let x = step; x <= xMax; x += step) xs.push(x);
+
+  const seriesDef = [
+    { key: "r1_1", name: "路线1 · 1班", color: C.green, dash: null, width: 1.5 },
+    { key: "r1_2", name: "路线1 · 2班", color: C.green, dash: "6 3", width: 2 },
+    { key: "r1_3", name: "路线1 · 3班", color: C.green, dash: "2 2", width: 1.5 },
+    { key: "r2_1", name: "路线2 · 1班", color: C.accent, dash: null, width: 1.5 },
+    { key: "r2_2", name: "路线2 · 2班", color: C.accent, dash: "6 3", width: 2 },
+    { key: "r2_3", name: "路线2 · 3班", color: C.accent, dash: "2 2", width: 1.5 },
+  ];
+
+  const cache = xs.map(x => calcModel({ ...state, ...mapX(x) }));
+
+  const series = seriesDef.map(def => {
+    const [r, s] = def.key.split("_");
+    const shift = parseInt(s) - 1;
+    const points = cache.map((m, i) => {
+      const pb = m.payback[shift][r];
+      return { x: xs[i], y: (pb > 0 && pb < 15) ? pb : null };
+    });
+    return { ...def, points, fmt: (v) => v.toFixed(1) + " 年" };
+  });
+
+  const xScale = v => MARGIN.left + (v - xs[0]) / (xMax - xs[0]) * PW;
+  const yScale = v => MARGIN.top + PH - v / 15 * PH;
+
+  const yTicks = [0, 2, 5, 8, 10, 15];
+
+  drawAxisGrid(svg, xScale, yScale, xTicks, yTicks,
+    v => v >= 1000 ? (v / 1000) + "k" : v,
+    v => v + "年");
+
+  series.forEach(s => drawLine(svg, s.points, xScale, yScale, s.color, s.width, s.dash));
+
+  drawRefLine(svg, xScale, yScale, null, 5, C.red, "5 年门槛");
+  if (currX >= xs[0] && currX <= xMax) {
+    drawRefLine(svg, xScale, yScale, currX, null, C.accent, `当前 ${currX.toLocaleString()}`);
+  }
+
+  setupHover(svg, series, xScale, yScale, xs, xLabel,
+    (v) => v.toFixed(1) + " 年");
+
+  renderLegend(series);
+}
+
+// ═══════════════════════════════════════════════
+// Tab 3: 投资对比柱状图
+// ═══════════════════════════════════════════════
+function renderInvestChart() {
+  const svg = clearSvg();
+  document.getElementById("chartTitle").innerHTML =
+    `新增设备投资对比（万元）<span>卧式 ${state.capH.toLocaleString()} 台 · 车铣 ${state.capT.toLocaleString()} 台</span>`;
+
+  const m = calcModel(state);
+  const shifts = ["1 班制", "2 班制", "3 班制"];
+  const data = shifts.map((name, i) => ({
+    name,
+    r1: m.gap[i].r1.invest,
+    r2: m.gap[i].r2.invest,
+  }));
+
+  const yMax = Math.max(...data.flatMap(d => [d.r1, d.r2])) * 1.1 || 100;
+  const xScale = (i, off) => MARGIN.left + PW * (i + 0.5) / 3 - 55 + off;
+  const yScale = v => MARGIN.top + PH - v / yMax * PH;
+
+  const xTicks = [];
+  const yTicks = niceTicks(0, yMax, 6);
+
+  drawAxisGrid(svg, () => 0, yScale, [], yTicks,
+    () => "",
+    v => v >= 10000 ? (v / 10000).toFixed(1) + "亿" : v + "万");
+
+  // X labels
+  shifts.forEach((name, i) => {
+    const cx = MARGIN.left + PW * (i + 0.5) / 3;
+    const label = svgEl("text", {
+      x: cx, y: MARGIN.top + PH + 25,
+      fill: C.muted, "font-size": 12, "text-anchor": "middle",
+      "font-family": "'Noto Sans SC', sans-serif", "font-weight": 700,
+    });
+    label.textContent = name;
+    svg.appendChild(label);
+  });
+
+  // Bars
+  const barW = 45;
+  data.forEach((d, i) => {
+    const cx = MARGIN.left + PW * (i + 0.5) / 3;
+    // r1
+    const h1 = d.r1 > 0 ? (d.r1 / yMax * PH) : 0;
+    svg.appendChild(svgEl("rect", {
+      x: cx - barW - 4, y: MARGIN.top + PH - h1,
+      width: barW, height: h1,
+      fill: C.green, rx: 3,
+    }));
+    if (d.r1 > 0) {
+      const t = svgEl("text", {
+        x: cx - barW / 2 - 4, y: MARGIN.top + PH - h1 - 6,
+        fill: C.green, "font-size": 11, "font-weight": 700, "text-anchor": "middle",
+        "font-family": "'JetBrains Mono', monospace",
+      });
+      t.textContent = fmtMoneyShort(d.r1);
+      svg.appendChild(t);
+    }
+    // r2
+    const h2 = d.r2 > 0 ? (d.r2 / yMax * PH) : 0;
+    svg.appendChild(svgEl("rect", {
+      x: cx + 4, y: MARGIN.top + PH - h2,
+      width: barW, height: h2,
+      fill: C.accent, rx: 3,
+    }));
+    if (d.r2 > 0) {
+      const t = svgEl("text", {
+        x: cx + barW / 2 + 4, y: MARGIN.top + PH - h2 - 6,
+        fill: C.accent, "font-size": 11, "font-weight": 700, "text-anchor": "middle",
+        "font-family": "'JetBrains Mono', monospace",
+      });
+      t.textContent = fmtMoneyShort(d.r2);
+      svg.appendChild(t);
+    }
+    if (d.r1 === 0 && d.r2 === 0) {
+      const t = svgEl("text", {
+        x: cx, y: MARGIN.top + PH - 10,
+        fill: C.muted, "font-size": 11, "text-anchor": "middle",
+        "font-family": "'Noto Sans SC', sans-serif",
+      });
+      t.textContent = "无需新增";
+      svg.appendChild(t);
+    }
+  });
+
+  renderLegend([
+    { name: "路线1 全自营", color: C.green, dash: false },
+    { name: "路线2 半外协", color: C.accent, dash: false },
+  ]);
+}
+
+// ═══════════════════════════════════════════════
+// 数据表
+// ═══════════════════════════════════════════════
+function renderTable(m) {
+  document.getElementById("tableTitle").textContent =
+    `详细数据表 · 卧式 ${state.capH.toLocaleString()} + 车铣 ${state.capT.toLocaleString()} = ${m.totalQty.toLocaleString()} 台`;
+  const tb = document.getElementById("dataTableBody");
+  const rows = [];
+  for (let s = 0; s < 3; s++) {
+    for (const r of ["r1", "r2", "r3"]) {
+      const d = m.demand[s][r];
+      const g = m.gap[s][r];
+      const save = r === "r3" ? 0 : m.annualSave[r];
+      const pb = r === "r3" ? null : m.payback[s][r];
+      const routeLabel = { r1: "全自营", r2: "半外协", r3: "全外协" }[r];
+      let pbClass = "payback-none", pbText = "—";
+      if (pb !== null) {
+        if (pb === 0 && g.invest === 0 && save > 0) { pbText = "立即"; pbClass = "payback-good"; }
+        else if (pb === 0) { pbText = "N/A"; pbClass = "payback-none"; }
+        else if (pb > 5) { pbText = pb.toFixed(1); pbClass = "payback-bad"; }
+        else if (pb < 2) { pbText = pb.toFixed(1); pbClass = "payback-good"; }
+        else { pbText = pb.toFixed(1); pbClass = "payback-ok"; }
+      }
+      rows.push(`
+        <tr>
+          <td>${r === "r1" ? (s + 1) + " 班" : ""}</td>
+          <td class="route-${r}">${routeLabel}</td>
+          <td>${d.h.toFixed(1)}</td>
+          <td>${d.t.toFixed(1)}</td>
+          <td>${g.hGap}</td>
+          <td>${g.tGap}</td>
+          <td class="invest ${g.invest === 0 ? 'zero' : ''}">${g.invest > 0 ? g.invest.toLocaleString() : "0"}</td>
+          <td class="save ${save === 0 ? 'none' : ''}">${save > 0 ? Math.round(save).toLocaleString() : "—"}</td>
+          <td class="${pbClass}">${pbText}</td>
+        </tr>
+      `);
+    }
+  }
+  tb.innerHTML = rows.join("");
+}
+
+// ═══════════════════════════════════════════════
+// 主更新循环
+// ═══════════════════════════════════════════════
+function updateAll() {
+  const m = calcModel(state);
+  renderKPI(m);
+  renderScenarios(m);
+  renderTable(m);
+  if (activeTab === "cost") renderCostChart();
+  else if (activeTab === "payback") renderPaybackChart();
+  else if (activeTab === "invest") renderInvestChart();
+}
+
+// ═══════════════════════════════════════════════
+// 联动规则
+// ═══════════════════════════════════════════════
+function updateLabels() {
+  document.getElementById("lbl-capH").textContent = state.capH.toLocaleString() + " 台";
+  document.getElementById("lbl-capT").textContent = state.capT.toLocaleString() + " 台";
+  document.getElementById("lbl-outRough").textContent = state.outRough.toFixed(1) + " 万/台";
+  document.getElementById("lbl-outFine").textContent = state.outFine.toFixed(1) + " 万/台";
+  document.getElementById("lbl-discount").textContent =
+    Math.round(state.discount * 100) + "%（省" + Math.round((1 - state.discount) * 100) + "%）";
+  document.getElementById("lbl-priceH").textContent = state.priceH + " 万/台";
+  document.getElementById("lbl-priceT").textContent = state.priceT + " 万/台";
+  document.getElementById("lbl-existH").textContent = state.existH + " 台";
+  document.getElementById("lbl-existT").textContent = state.existT + " 台";
+  document.getElementById("lbl-days").textContent = state.days + " 天";
+  document.getElementById("lbl-util").textContent = Math.round(state.util * 100) + "%";
+
+  // 同步滑块位置（联动时需要）
+  document.getElementById("outRough").value = state.outRough;
+  document.getElementById("outFine").value = state.outFine;
+}
+
+function bindSliders() {
+  const ids = ["capH", "capT", "discount", "priceH", "priceT", "existH", "existT", "days", "util"];
+  ids.forEach(id => {
+    document.getElementById(id).addEventListener("input", (e) => {
+      state[id] = parseFloat(e.target.value);
+      updateLabels();
+      updateAll();
+    });
+  });
+
+  // 联动：外协单价按 1:1.8 比例
+  document.getElementById("outRough").addEventListener("input", (e) => {
+    const v = parseFloat(e.target.value);
+    state.outRough = v;
+    state.outFine = Math.round(v * OUT_RATIO * 10) / 10;
+    // 保证在 outFine 滑块范围内
+    const fineMax = parseFloat(document.getElementById("outFine").max);
+    const fineMin = parseFloat(document.getElementById("outFine").min);
+    if (state.outFine > fineMax) state.outFine = fineMax;
+    if (state.outFine < fineMin) state.outFine = fineMin;
+    updateLabels();
+    updateAll();
+  });
+  document.getElementById("outFine").addEventListener("input", (e) => {
+    const v = parseFloat(e.target.value);
+    state.outFine = v;
+    state.outRough = Math.round(v / OUT_RATIO * 10) / 10;
+    const roughMax = parseFloat(document.getElementById("outRough").max);
+    const roughMin = parseFloat(document.getElementById("outRough").min);
+    if (state.outRough > roughMax) state.outRough = roughMax;
+    if (state.outRough < roughMin) state.outRough = roughMin;
+    updateLabels();
+    updateAll();
+  });
+}
+
+// Tab 切换（主图表）
+document.querySelectorAll(".tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeTab = btn.dataset.tab;
+    // 投资对比柱状图不需要横轴切换
+    const xAxisTabsEl = document.getElementById("xAxisTabs");
+    if (activeTab === "invest") xAxisTabsEl.classList.add("hidden");
+    else xAxisTabsEl.classList.remove("hidden");
+    updateAll();
+  });
+});
+
+// 横轴模式切换
+document.querySelectorAll(".x-axis-tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".x-axis-tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    xAxisMode = btn.dataset.mode;
+    if (activeTab === "cost") renderCostChart();
+    else if (activeTab === "payback") renderPaybackChart();
+  });
+});
+
+// 重置
+document.getElementById("resetBtn").addEventListener("click", () => {
+  state = { ...DEFAULTS };
+  for (const k in DEFAULTS) {
+    const el = document.getElementById(k);
+    if (el) el.value = DEFAULTS[k];
+  }
+  updateLabels();
+  updateAll();
+});
+
+// 初始化
+bindSliders();
+updateLabels();
+updateAll();
+
+// 窗口缩放重绘
+window.addEventListener("resize", () => {
+  if (activeTab === "cost") renderCostChart();
+  else if (activeTab === "payback") renderPaybackChart();
+  else if (activeTab === "invest") renderInvestChart();
+});
+</script>
+
+</body>
+</html>
